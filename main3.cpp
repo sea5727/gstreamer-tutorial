@@ -122,9 +122,9 @@ int main (int argc, char *argv[]){
     app->audio_rtppay = gst_element_factory_make("rtpmp4gpay", "audio_rtppay");
     app->audiosink = gst_element_factory_make("udpsink", "audiosink");
 
-    g_object_set (app->source, "location", "/home/jdin/SampleVideo_1280x720_5mb.mp4", NULL);
-    g_object_set (app->audiosink, "host", "192.168.0.204", NULL);
-    g_object_set (app->audiosink, "port", 5010, NULL);
+    g_object_set (app->source, "location", "/home/ysh8361/Videos/SampleVideo_1280x720_5mb.mp4", NULL);
+    g_object_set (app->audiosink, "host", "192.168.0.30", NULL);
+    g_object_set (app->audiosink, "port", 5006, NULL);
   
     GstPad *sinkpad, *srcpad;
 
