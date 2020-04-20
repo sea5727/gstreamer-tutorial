@@ -18,7 +18,6 @@
  * Boston, MA 02110-1301, USA.
  */
 #include <gst/gst.h>
-#include <glib.h>
 #include <gst/rtp/rtp.h>
 
 /*
@@ -56,6 +55,7 @@
  * ports.
  */
 
+
 struct CallData{
   GstBin *audioBin;
   GstBin *videoBin;
@@ -63,40 +63,36 @@ struct CallData{
   GstElement *audio_queue;  
 };
 
-static GstBin *audioBin;
-static GstBin *videoBin;
-static GstElement *video_queue;
-static GstElement *audio_queue;
 
 static void
 qtdemux_pad_added_cb (GstElement * element, GstPad * new_pad, gpointer app)
 {
-  CallData *call = (CallData*)app;
+//   CallData *call = (CallData*)app;
     GstPad *sinkpad, *srcpad;
 
     g_print ("new payload on pad: %s\n", GST_PAD_NAME (new_pad));
 
     if (strcmp(GST_PAD_NAME(new_pad), "audio_0") == 0)
     {
-        // g_print("add pads..: %s\n", GST_PAD_NAME(new_pad));
-        // sinkpad = gst_element_get_static_pad(GST_ELEMENT(call->audioBin), "sink");
-        // g_assert(sinkpad);
-
-        // GstPadLinkReturn lres = gst_pad_link(new_pad, sinkpad);
-        // g_print("lres:%d\n", lres);
-        // g_assert(lres == GST_PAD_LINK_OK);
-        // gst_object_unref(sinkpad);
-    }
-    else
-    {
         g_print("add pads..: %s\n", GST_PAD_NAME(new_pad));
-        sinkpad = gst_element_get_static_pad(GST_ELEMENT(call->videoBin), "sink");
+        sinkpad = gst_element_get_static_pad((GstElement *)app, "sink");
         g_assert(sinkpad);
 
         GstPadLinkReturn lres = gst_pad_link(new_pad, sinkpad);
         g_print("lres:%d\n", lres);
         g_assert(lres == GST_PAD_LINK_OK);
         gst_object_unref(sinkpad);
+    }
+    else
+    {
+        // g_print("add pads..: %s\n", GST_PAD_NAME(new_pad));
+        // sinkpad = gst_element_get_static_pad(GST_ELEMENT(call->videoBin), "sink");
+        // g_assert(sinkpad);
+
+        // GstPadLinkReturn lres = gst_pad_link(new_pad, sinkpad);
+        // g_print("lres:%d\n", lres);
+        // g_assert(lres == GST_PAD_LINK_OK);
+        // gst_object_unref(sinkpad);
     }
 
 }
@@ -124,13 +120,18 @@ qtdemux_pad_added_cb2 (GstElement * element, GstPad * new_pad, gpointer app)
         g_print("add pads..: %s\n", GST_PAD_NAME(new_pad));
         sinkpad = gst_element_get_static_pad(appData, "sink");
         g_assert(sinkpad);
-
+        g_print("srcpad is linked %d\n", gst_pad_is_linked(gst_element_get_static_pad(appData, "src")));
+        g_print("sinkpad is linked %d\n", gst_pad_is_linked(sinkpad));
+        g_print("new_pad is linked %d\n", gst_pad_is_linked(new_pad));
         GstPadLinkReturn lres = gst_pad_link(new_pad, sinkpad);
+        g_print("g_assert = %d\n", lres);
         g_assert(lres == GST_PAD_LINK_OK);
         gst_object_unref(sinkpad);
     }
 
 }
+
+
 
 
 typedef struct _SessionData
@@ -192,33 +193,56 @@ setup_ghost (GstElement * src, GstBin * bin)
   gst_element_add_pad (GST_ELEMENT (bin), binPad);
 }
 
+static SessionData *
+make_audio_session (guint sessionNum)
+{
+  SessionData *session;
+  GstBin *audioBin = GST_BIN (gst_bin_new (NULL));
+  GstElement *audioSrc = gst_element_factory_make ("audiotestsrc", NULL);
+  GstElement *encoder = gst_element_factory_make ("alawenc", NULL);
+  GstElement *payloader = gst_element_factory_make ("rtppcmapay", NULL);
+  g_object_set (audioSrc, "is-live", TRUE, NULL);
+
+  gst_bin_add_many (audioBin, audioSrc, encoder, payloader, NULL);
+  gst_element_link_many (audioSrc, encoder, payloader, NULL);
+
+  setup_ghost (payloader, audioBin);
+
+  session = session_new (sessionNum);
+  session->input = GST_ELEMENT (audioBin);
+
+  return session;
+}
+
+
 
 static SessionData *
 make_audio_session2 (guint sessionNum, CallData *call)
 {
   SessionData *session;
   call->audioBin = GST_BIN (gst_bin_new (NULL));
-  // GstElement *audioSrc = gst_element_factory_make ("filesrc", NULL);
-  // GstElement *demux = gst_element_factory_make("qtdemux", NULL);
+  GstElement *audioSrc = gst_element_factory_make ("filesrc", NULL);
+  GstElement *demux = gst_element_factory_make("qtdemux", NULL);
   call->audio_queue = gst_element_factory_make("queue", "audio_queue");
   GstElement *audio_rtppay = gst_element_factory_make("rtpmp4gpay", "audio_rtppay");
 
-  // g_object_set (audioSrc, "location", "/home/ysh8361/Videos/SampleVideo_1280x720_5mb.mp4", NULL);
+  g_object_set (audioSrc, "location", "/home/jdin/SampleVideo_1280x720_5mb.mp4", NULL);
 
-  // gst_bin_add_many (audioBin, audioSrc, demux, audio_queue, audio_rtppay, NULL);
-  gst_bin_add_many (call->audioBin, call->audio_queue, audio_rtppay, NULL);
+  gst_bin_add_many (call->audioBin, audioSrc, demux, call->audio_queue, audio_rtppay, NULL);
+//   gst_bin_add_many (call->audioBin, call->audio_queue, audio_rtppay, NULL);
 
-  // gst_element_link_many (audioSrc, demux, NULL);
+  gst_element_link_many (audioSrc, demux, NULL);
   gst_element_link_many (call->audio_queue, audio_rtppay, NULL);
 
-  // g_signal_connect (demux, "pad-added", G_CALLBACK (qtdemux_pad_added_cb), audio_queue);
+  g_signal_connect (demux, "pad-added", G_CALLBACK (qtdemux_pad_added_cb), call->audio_queue);
 
   setup_ghost (audio_rtppay, call->audioBin);
-  GstPad* pad = gst_element_get_static_pad (call->audio_queue, "sink");
-  GstPad* ghost_pad = gst_ghost_pad_new("sink", pad);
-  gst_pad_set_active (ghost_pad, TRUE);
-  gst_element_add_pad (GST_ELEMENT(call->audioBin), ghost_pad);
-  gst_object_unref (pad);
+
+//   GstPad* pad = gst_element_get_static_pad (call->audio_queue, "sink");
+//   GstPad* ghost_pad = gst_ghost_pad_new("sink", pad);
+//   gst_pad_set_active (ghost_pad, TRUE);
+//   gst_element_add_pad (GST_ELEMENT(call->audioBin), ghost_pad);
+//   gst_object_unref (pad);
 
   session = session_new (sessionNum);
   session->input = GST_ELEMENT (call->audioBin);
@@ -227,36 +251,41 @@ make_audio_session2 (guint sessionNum, CallData *call)
 }
 
 
+
 static SessionData *
 make_video_session2 (guint sessionNum, CallData *call)
 {
   call->videoBin = GST_BIN (gst_bin_new (NULL));
-  // GstElement *videoSrc = gst_element_factory_make ("filesrc", NULL);
-  // GstElement *demux = gst_element_factory_make("qtdemux", NULL);
 
+
+  GstElement *videoSrc = gst_element_factory_make ("filesrc", NULL);
+  GstElement *demux = gst_element_factory_make("qtdemux", NULL);
   call->video_queue = gst_element_factory_make("queue", NULL);
   GstElement *video_parse = gst_element_factory_make("h264parse", NULL);
   GstElement *video_rtppay = gst_element_factory_make("rtph264pay", NULL);
 
+
   GstCaps *videoCaps;
   SessionData *session;
-  // g_object_set (videoSrc, "location", "/home/ysh8361/Videos/SampleVideo_1280x720_5mb.mp4", NULL);
+  g_object_set (videoSrc, "location", "/home/jdin/SampleVideo_1280x720_5mb.mp4", NULL);
 
-  // gst_bin_add_many (videoBin, videoSrc, demux, video_queue, video_parse, video_rtppay, NULL);
-  gst_bin_add_many (call->videoBin, call->video_queue, video_parse, video_rtppay, NULL);
+  gst_bin_add_many (call->videoBin, videoSrc, demux, call->video_queue, video_parse, video_rtppay, NULL);
 
-  // g_signal_connect (demux, "pad-added", G_CALLBACK (qtdemux_pad_added_cb2), video_queue);
   
-  // gst_element_link (videoSrc, demux);
+  
+  gst_element_link (videoSrc, demux);
   gst_element_link_many (call->video_queue, video_parse, video_rtppay, NULL);
+
+
+    g_signal_connect (demux, "pad-added", G_CALLBACK (qtdemux_pad_added_cb2), call->video_queue);
 
   setup_ghost (video_rtppay, call->videoBin);
   
-  GstPad* pad = gst_element_get_static_pad (call->video_queue, "sink");
-  GstPad* ghost_pad = gst_ghost_pad_new("sink", pad);
-  gst_pad_set_active (ghost_pad, TRUE);
-  gst_element_add_pad (GST_ELEMENT(call->videoBin), ghost_pad);
-  gst_object_unref (pad);
+//   GstPad* pad = gst_element_get_static_pad (call->video_queue, "sink");
+//   GstPad* ghost_pad = gst_ghost_pad_new("sink", pad);
+//   gst_pad_set_active (ghost_pad, TRUE);
+//   gst_element_add_pad (GST_ELEMENT(call->videoBin), ghost_pad);
+//   gst_object_unref (pad);
 
 
 
@@ -266,6 +295,35 @@ make_video_session2 (guint sessionNum, CallData *call)
   return session;
 }
 
+
+
+
+static SessionData *
+make_video_session (guint sessionNum)
+{
+  GstBin *videoBin = GST_BIN (gst_bin_new (NULL));
+  GstElement *videoSrc = gst_element_factory_make ("videotestsrc", NULL);
+  GstElement *encoder = gst_element_factory_make ("theoraenc", NULL);
+  GstElement *payloader = gst_element_factory_make ("rtptheorapay", NULL);
+  GstCaps *videoCaps;
+  SessionData *session;
+  g_object_set (videoSrc, "is-live", TRUE, "horizontal-speed", 1, NULL);
+  g_object_set (payloader, "config-interval", 2, NULL);
+
+  gst_bin_add_many (videoBin, videoSrc, encoder, payloader, NULL);
+  videoCaps = gst_caps_new_simple ("video/x-raw",
+      "width", G_TYPE_INT, 352,
+      "height", G_TYPE_INT, 288, "framerate", GST_TYPE_FRACTION, 15, 1, NULL);
+  gst_element_link_filtered (videoSrc, encoder, videoCaps);
+  gst_element_link (encoder, payloader);
+
+  setup_ghost (payloader, videoBin);
+
+  session = session_new (sessionNum);
+  session->input = GST_ELEMENT (videoBin);
+
+  return session;
+}
 
 static GstElement *
 request_aux_sender (GstElement * rtpbin, guint sessid, SessionData * session)
@@ -310,25 +368,27 @@ add_stream (GstPipeline * pipe, GstElement * rtpBin, SessionData * session)
   GstElement *rtpSink = gst_element_factory_make ("udpsink", NULL);
   GstElement *rtcpSink = gst_element_factory_make ("udpsink", NULL);
   GstElement *rtcpSrc = gst_element_factory_make ("udpsrc", NULL);
+  GstElement *identity = gst_element_factory_make ("identity", NULL);
   int basePort;
   gchar *padName;
 
   basePort = 5000 + (session->sessionNum * 6);
 
-  gst_bin_add_many (GST_BIN (pipe), rtpSink, rtcpSink, rtcpSrc, session->input, NULL);
+  gst_bin_add_many (GST_BIN (pipe), rtpSink, rtcpSink, rtcpSrc, identity,
+      session->input, NULL);
 
   /* enable retransmission by setting rtprtxsend as the "aux" element of rtpbin */
   g_signal_connect (rtpBin, "request-aux-sender",
       (GCallback) request_aux_sender, session);
 
-  g_object_set (rtpSink, "port", basePort, "host", "192.168.0.30", NULL);
-  g_object_set (rtcpSink, "port", basePort + 1, "host", "192.168.0.30", "sync",
+  g_object_set (rtpSink, "port", basePort, "host", "192.168.0.204", NULL);
+  g_object_set (rtcpSink, "port", basePort + 1, "host", "192.168.0.204", "sync",
       FALSE, "async", FALSE, NULL);
   g_object_set (rtcpSrc, "port", basePort + 5, NULL);
 
   /* this is just to drop some rtp packets at random, to demonstrate
    * that rtprtxsend actually works */
-//   g_object_set (identity, "drop-probability", 0.01, NULL);
+  g_object_set (identity, "drop-probability", 0.01, NULL);
 
   padName = g_strdup_printf ("send_rtp_sink_%u", session->sessionNum);
   gst_element_link_pads (session->input, "src", rtpBin, padName);
@@ -336,10 +396,10 @@ add_stream (GstPipeline * pipe, GstElement * rtpBin, SessionData * session)
 
   /* link rtpbin to udpsink directly here if you don't want
    * artificial packet loss */
-//   padName = g_strdup_printf ("send_rtp_src_%u", session->sessionNum);
-//   gst_element_link_pads (rtpBin, padName, identity, "sink");
-//   gst_element_link (identity, rtpSink);
-//   g_free (padName);
+  padName = g_strdup_printf ("send_rtp_src_%u", session->sessionNum);
+  gst_element_link_pads (rtpBin, padName, identity, "sink");
+  gst_element_link (identity, rtpSink);
+  g_free (padName);
 
   padName = g_strdup_printf ("send_rtcp_src_%u", session->sessionNum);
   gst_element_link_pads (rtpBin, padName, rtcpSink, "sink");
@@ -358,26 +418,6 @@ add_stream (GstPipeline * pipe, GstElement * rtpBin, SessionData * session)
 int
 main (int argc, char **argv)
 {
-  
-  char *filepath = NULL;
-  GError *error = NULL;
-  int session_count = 1;
-  GOptionEntry entries[] = {
-    {"session-count", 's', 0, G_OPTION_ARG_INT, &session_count, "session count", "1"},
-    {NULL}
-  };
-
-
-  GOptionContext *context = g_option_context_new("App");
-  g_option_context_set_help_enabled(context, TRUE);
-  g_option_context_add_main_entries(context, entries, "test");
-  if(!g_option_context_parse(context, &argc, &argv, &error)){
-    g_print("option parsing failed : %s\n", error->message);
-    exit(1);
-  }
-
-  g_print("session_count:%d\n", session_count);
-
   GstPipeline *pipe;
   GstBus *bus;
   SessionData *videoSession;
@@ -389,36 +429,25 @@ main (int argc, char **argv)
 
   loop = g_main_loop_new (NULL, FALSE);
 
-  for (int i = 0; i < session_count; i++)
-  {
-    CallData *call = new CallData();
-    pipe = GST_PIPELINE(gst_pipeline_new(NULL));
-    bus = gst_element_get_bus(GST_ELEMENT(pipe));
-    g_signal_connect(bus, "message::state-changed", G_CALLBACK(cb_state), pipe);
-    gst_bus_add_signal_watch(bus);
-    gst_object_unref(bus);
+  CallData *call = new CallData();
+  pipe = GST_PIPELINE (gst_pipeline_new (NULL));
+  bus = gst_element_get_bus (GST_ELEMENT (pipe));
+  g_signal_connect (bus, "message::state-changed", G_CALLBACK (cb_state), pipe);
+  gst_bus_add_signal_watch (bus);
+  gst_object_unref (bus);
 
-    rtpBin = gst_element_factory_make("rtpbin", NULL);
-    g_object_set(rtpBin, "rtp-profile", GST_RTP_PROFILE_AVPF, NULL);
+  rtpBin = gst_element_factory_make ("rtpbin", NULL);
+  g_object_set (rtpBin, "rtp-profile", GST_RTP_PROFILE_AVPF, NULL);
 
-    gst_bin_add_many(GST_BIN(pipe), rtpBin, NULL);
+  gst_bin_add (GST_BIN (pipe), rtpBin);
 
-    videoSession = make_video_session2(0 + (i * 2), call);
-    // audioSession = make_audio_session2(1 + (i * 2), call);
-    add_stream(pipe, rtpBin, videoSession);
-    // add_stream(pipe, rtpBin, audioSession);
+  videoSession = make_video_session2 (0, call);
+  audioSession = make_audio_session2 (1, call);
+  add_stream (pipe, rtpBin, videoSession);
+  add_stream (pipe, rtpBin, audioSession);
 
-    GstElement *videoSrc = gst_element_factory_make("filesrc", NULL);
-    GstElement *demux = gst_element_factory_make("qtdemux", NULL);
-
-    g_object_set(videoSrc, "location", "/home/jdin/SampleVideo_1280x720_5mb.mp4", NULL);
-    gst_bin_add_many(GST_BIN(pipe), videoSrc, demux, NULL);
-    gst_element_link(videoSrc, demux);
-    g_signal_connect(demux, "pad-added", G_CALLBACK(qtdemux_pad_added_cb), call);
-
-    g_print("starting server pipeline\n");
-    gst_element_set_state(GST_ELEMENT(pipe), GST_STATE_PLAYING);
-  }
+  g_print ("starting server pipeline\n");
+  gst_element_set_state (GST_ELEMENT (pipe), GST_STATE_PLAYING);
 
   g_main_loop_run (loop);
 

@@ -22,7 +22,7 @@ endif()
 
 
 
-add_executable(rtp-streaming-server-7 main7.cpp)
+add_executable(rtp-streaming-server-10 main10.cpp)
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
