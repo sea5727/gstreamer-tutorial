@@ -424,8 +424,8 @@ int make_rtp_bins()
 
     gst_bin_add_many(GST_BIN(myrtp->pipeline), 
                      myrtp->rtpsink_audio,
-                    //  myrtp->rtcpsink_audio,
-                    //  myrtp->rtcpsrc_audio,
+                     myrtp->rtcpsink_audio,
+                     myrtp->rtcpsrc_audio,
                      GST_ELEMENT(myrtp->audio_bin),
                      NULL);
     g_object_set(myrtp->rtpsink_audio, "port", 5004, "host", "192.168.0.4", NULL);
