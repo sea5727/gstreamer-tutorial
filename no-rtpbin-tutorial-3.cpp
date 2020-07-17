@@ -204,7 +204,7 @@ make_pipeline(char * name, const char *host, int port)
     g_object_set(newdata->rtpmp4gpay, "pt", 98, NULL);
     g_object_set(newdata->rtph264pay, "pt", 96, NULL);
 
-    g_object_set(newdata->file_src, "location", "/home/jdin/youtube_XS7IBdZpGu8_1080p_fhd.mp4", NULL);
+    g_object_set(newdata->file_src, "location", "/home/jdin/youtube__PXhcJX_UGY0_360p.mp4", NULL);
     g_object_set(newdata->file_sink, "location", "/home/jdin/new.mp4", NULL);
 
     gchar *filesrcname;

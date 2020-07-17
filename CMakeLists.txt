@@ -22,7 +22,18 @@ endif()
 
 
 
-add_executable(rtp-streaming-server-10 main10.cpp)
+# add_executable(rtp-streaming-server-10 main10.cpp)
+
+# add_executable(no-rtpbin-tutorial-2 no-rtpbin-tutorial-2.cpp)
+
+# add_executable(rtpbin-tutorial-1 rtpbin-tutorial-1.cpp)
+
+# add_executable(no-rtpbin-tutorial-2 no-rtpbin-tutorial-2.cpp)
+# add_executable(rtpbin-tutorial-2 rtpbin-tutorial-2.cpp)
+
+add_executable(no-rtpbin-tutorial-3 no-rtpbin-tutorial-3.cpp)
+add_executable(rtpbin-tutorial-3 rtpbin-tutorial-3.cpp)
+
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})

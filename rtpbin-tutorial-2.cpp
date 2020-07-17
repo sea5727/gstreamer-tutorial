@@ -77,10 +77,7 @@ my_bus_callback(GstBus* bus, GstMessage * message, gpointer data)
 
                 count += 1 ;
                 gchar *location;
-                g_object_get (G_OBJECT (my->file_src), "location", &location, NULL);
-                g_print("location : %s\n", location);
-                g_object_set(my->file_src, "location", "/home/ysh8361/kotlin-compiler-1.3.72.zip", NULL);
-                g_object_set(my->file_sink, "location", "/home/ysh8361/new.zip", NULL);
+                
 
                 
                 gst_element_set_state(my->pipeline, GST_STATE_NULL);
@@ -464,7 +461,7 @@ int make_rtp_bins(const char *ip, int port, int video_seqq, int audio_seq)
     myrtp->file_src = gst_element_factory_make("filesrc", NULL);
     myrtp->qtdemux = gst_element_factory_make("qtdemux", NULL);
     
-    g_object_set(myrtp->file_src, "location", "/home/jdin/SampleVideo_1280x720_5mb.mp4", NULL);
+    g_object_set(myrtp->file_src, "location", "/home/jdin/youtube_XS7IBdZpGu8_1080p_fhd.mp4", NULL);
     gst_bin_add_many(GST_BIN(myrtp->pipeline), myrtp->file_src, myrtp->qtdemux, NULL);
     gst_element_link(myrtp->file_src, myrtp->qtdemux);
     g_signal_connect(myrtp->qtdemux, "pad-added", G_CALLBACK(qtdemux_callback2), myrtp);
