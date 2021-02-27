@@ -24,12 +24,13 @@ class GTK_Main(object):
         # vbox.add(self.button)
         # window.show_all()
 
+        print(type(self.on_message))
         self.player = Gst.ElementFactory.make("playbin", "player")
         fakesink = Gst.ElementFactory.make("fakesink", "fakesink")
         self.player.set_property("video-sink", fakesink)
-        # bus = self.player.get_bus()
-        # bus.add_signal_watch()
-        # bus.connect("message", self.on_message)
+        bus = self.player.get_bus()
+        bus.add_signal_watch()
+        bus.connect("message", self.on_message)
 
         filepath = '/home/ysh8361/workspace/gstreamer/gstreamer-tutorial/gstreamer-hello/file_example_MP3_2MG.mp3'
 
@@ -57,15 +58,17 @@ class GTK_Main(object):
                 self.button.set_label("Start")
 
     def on_message(self, bus, message):
-        t = message.type
-        if t == Gst.MessageType.EOS:
-            self.player.set_state(Gst.State.NULL)
-            self.button.set_label("Start")
-        elif t == Gst.MessageType.ERROR:
-            self.player.set_state(Gst.State.NULL)
-            err, debug = message.parse_error()
-            print("Error: %s" % err, debug)
-            self.button.set_label("Start")
+        '''
+        '''
+        # t = message.type
+        # if t == Gst.MessageType.EOS:
+        #     self.player.set_state(Gst.State.NULL)
+        #     self.button.set_label("Start")
+        # elif t == Gst.MessageType.ERROR:
+        #     self.player.set_state(Gst.State.NULL)
+        #     err, debug = message.parse_error()
+        #     print("Error: %s" % err, debug)
+        #     self.button.set_label("Start")
 
 
 Gst.init(None)

@@ -1,0 +1,1 @@
+gst-launch-1.0 filesrc location="/home/ysh8361/workspace/gstreamer/gstreamer-tutorial/480p.mp4" ! qtdemux name=demux demux.audio_0 ! queue ! decodebin ! audioconvert ! audioresample ! autoaudiosink demux.video_0 ! queue ! decodebin ! videoconvert ! autovideosink
