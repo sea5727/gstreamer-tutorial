@@ -7,18 +7,23 @@ int fd[2];
 void *thread_function(void *data)
 {
 	// call sleep so that the main loop source is not ready immediately
-	sleep(10);
-	
-	write(fd[1],"GIOChannel main loop example",29);
+	sleep(1);
+	auto ret = write(fd[1],"GIOChannel main loop example",29);
 	return NULL;
 }
 
-gboolean my_callback(GIOChannel *source,GIOCondition condition,gpointer data)
-{
+gboolean my_callback(GIOChannel *source,GIOCondition condition,gpointer data) {
 	char buf[100];	
+
+    gchar * line;
+    auto ret = g_io_channel_read_line (source, &line, NULL, NULL, NULL);
+    g_print("ret:%d\n", ret);
+    g_print("line:%s\n", line);
+
+    g_free(line);
 	
-	read(fd[0],buf,sizeof(buf));
-	g_print("%s",buf);
+	// read(fd[0],buf,sizeof(buf));
+	// g_print("%s",buf);
 	
 	getchar();
 	
@@ -40,7 +45,9 @@ int main()
 	g_thread_create(thread_function,NULL,TRUE,NULL);
 	
 	loop = g_main_loop_new(NULL,FALSE);
-	g_io_add_watch(channel,G_IO_IN | G_IO_HUP | G_IO_ERR,(GIOFunc)my_callback,loop);
+    
+    GIOCondition a;
+	g_io_add_watch(channel,G_IO_IN,(GIOFunc)my_callback,loop);
 	g_main_loop_run(loop);
 	
 	g_io_channel_shutdown(channel,TRUE,NULL);

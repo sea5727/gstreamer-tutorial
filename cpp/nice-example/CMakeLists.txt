@@ -20,14 +20,24 @@ if(PKG_CONFIG_FOUND)
     message(GST_INCLUDE_DIRS: ${GST_INCLUDE_DIRS} )
     message(GST_LIBRARY_DIRS: ${GST_LIBRARY_DIRS} )
     message(GST_LIBRARIES: ${GST_LIBRARIES} )   
+    message(NICE_INCLUDE_DIRS: ${NICE_INCLUDE_DIRS} )
+    message(NICE_LIBRARIES: ${NICE_LIBRARIES} )
+    
     INCLUDE_DIRECTORIES(${NICE_INCLUDE_DIRS})
     INCLUDE_DIRECTORIES(${GST_INCLUDE_DIRS} ${GLIB_INCLUDE_DIRS} ${GSTAUDIO_INCLUDE_DIRS} ${GSTRTP_INCLUDE_DIRS})
+
+    #nice
+    # LINK_LIBRARIES(/usr/local/lib64/libnice.so)
+    # LINK_LIBRARIES(/home/ysh8361/workspace/gstreamer/gstreamer-tutorial/cpp/nice-example/libnice.so.10.11.0)
+    LINK_LIBRARIES(gio-2.0 gobject-2.0 glib-2.0)
     LINK_LIBRARIES(${NICE_LIBRARIES})
     LINK_LIBRARIES(${GST_LIBRARIES} ${GLIB_LIBRARIES} ${GSTAUDIO_LIBRARIES} ${GSTRTP_LIBRARIES} )
 endif()
 
 
-add_executable(nice-example0 nice-example0.cpp)
+add_executable(example-1 example-1.c)
+add_executable(simple-example simple-example.cpp)
+add_executable(sdp-example sdp-example.cpp)
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})

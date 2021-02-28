@@ -187,6 +187,7 @@ example_thread(void *data)
       gsize sdp_len;
 
       sdp = (gchar *) g_base64_decode (line, &sdp_len);
+      g_print("base64_decode:%s\n", sdp);
       // Parse remote candidate list and set it on the agent
       if (sdp && nice_agent_parse_remote_sdp (agent, sdp) > 0) {
         g_free (sdp);
