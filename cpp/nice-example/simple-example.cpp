@@ -141,14 +141,16 @@ main(int argc, char *argv[])
   g_signal_connect(agent, "component-state-changed",
       G_CALLBACK(cb_component_state_changed), NULL);
 
-
-      
-
+  printf("start nice_agent_add_stream\n");
+  getchar();
   // Create a new stream with one component
   stream_id = nice_agent_add_stream(agent, 1);
   if (stream_id == 0)
     g_error("Failed to add stream");
 
+  
+  printf("start nice_agent_attach_recv\n");
+  getchar();
   // Attach to the component to receive the data
   // Without this call, candidates cannot be gathered
   nice_agent_attach_recv(agent, stream_id, 1,
@@ -160,6 +162,8 @@ main(int argc, char *argv[])
 
   g_print("waiting for candidate-gathering-done signal...");
 
+  getchar();
+  printf("start g_main_loop_run\n");
   // Run the mainloop. Everything else will happen asynchronously
   // when the candidates are done gathering.
   g_main_loop_run (gloop);
