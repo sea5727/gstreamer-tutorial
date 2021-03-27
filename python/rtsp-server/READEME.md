@@ -80,14 +80,42 @@ S->C: RTSP/1.0 200 OK
         Transport: RTP/AVP;unicast;client_port=60516-60517;server_port=47588-47589;ssrc=8A201DD0;mode="PLAY"
         Server: GStreamer RTSP server
         Session: jLGXzv3eUwRccSl
-        Date: Mon, 22 Mar 2021 13:31:15  GMT
+        Date: Mon, 22 Mar 2021 13:31:15 GMT
+
 C->S:   SETUP rtsp://sanghgotest.iptime.org/test/stream=1 RTSP/1.0
         CSeq:5
         User-AGent: LibVLC/3.0.8 (LIVE555 Streaming Media v2016.11.28)
         Transport: RTP/AVP;unicast;client_port=60518-60519
         Sesion: jLGJXzv3eUw3ccSl
-
+S->C:   RTSP/1.0 200 OK
+        CSeq:4
+        Transport: RTP/AVP;unicast;client_port=60518-60519;server_port=43570-43571;ssrc=346C724;mode="PLAY"
+        Server: GStreamer RTSP server
+        Session: jLGXzv3eUwRccSl
+        Date: Mon, 22 Mar 2021 13:31:15 GMT
 
  ```
 
- 
+ ### PLAY
+ - 미디어 스트림을 재생한다. 범위를 지정하지 않으면 처음부터 끝까지 재생, 일시 중지된 상황이라면 중지도니 지점부터 이어서 재생
+
+ ```
+ C->S:  PLAY rtsp://sanghotest.iptime.org:12345/test/ RTSP/1.0
+        CSeq:6
+        User-Agent:LibVLC/3.0.8 (LIVE555 Streaming Media v2016.11.28)
+        Session: -SPyTmrMF_o-2JB
+        Range: npt=0.000-
+또는 pause 후 재생시 Rage: npt=324.667
+ S->:   RTSP/1.0 200 OK
+        CSeq:6
+        RTP-Info: url=rtsp://sanghotest.iptime.org:12345/test/stream=0;seq=22423;rtptime=2551474179, url=rtsp://sanghotest.iptime.org:12345/test/stream=1;seq=23462;rtptime=1385494271
+        Range: npt=0-3146.002
+        Server: GStreamer RTSP server
+        Session: .-SPyTmRMF_o-2JB
+        Date: Mon, 22 Mar 2021 14:28:57 GMT
+ ```
+ ### TEARDOWN
+
+ ### PAUSE
+
+
