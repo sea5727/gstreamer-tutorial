@@ -35,7 +35,8 @@ if(PKG_CONFIG_FOUND)
 endif()
 
 
-add_executable(plugin-tutorial plugin-tutorial.cpp)
+# add_library(gstplugin SHARED gstplugin.c)
+add_library(gstrtpchecker SHARED gstrtpchecker.c)
 
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
