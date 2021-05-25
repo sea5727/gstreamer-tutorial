@@ -1,18 +1,3 @@
-project('gst-template', 'c', version : '1.16.1.0', license : 'LGPL')
-
-plugins_install_dir = join_paths(get_option('libdir'), 'gstreamer-1.0')
-
-cc = meson.get_compiler('c')
-
-gst_version = meson.project_version()
-
-api_version = '1.0'
-
-gst_dep = dependency('gstreamer-1.0',
-    fallback : ['gstreamer', 'gst_dep'])
-
-
-
 plugin_c_args = ['-DHAVE_CONFIG_H']
 
 cdata = configuration_data()
@@ -27,16 +12,28 @@ configure_file(output : 'config.h', configuration : cdata)
 gstaudio_dep = dependency('gstreamer-audio-1.0',
     fallback: ['gst-plugins-base', 'audio_dep'])
 
-
 # Plugin 1
 plugin_sources = [
-  'gstrtpchecker.c'
+  'src/gstplugin.c'
   ]
 
-gstpluginexample = library('gstrtpchecker',
+gstpluginexample = library('gstplugin',
   plugin_sources,
   c_args: plugin_c_args,
   dependencies : [gst_dep],
+  install : true,
+  install_dir : plugins_install_dir,
+)
+
+# Plugin 2 (audio filter example)
+audiofilter_sources = [
+  'src/gstaudiofilter.c',
+  ]
+
+gstaudiofilterexample = library('gstaudiofilterexample',
+  audiofilter_sources,
+  c_args: plugin_c_args,
+  dependencies : [gst_dep, gstaudio_dep],
   install : true,
   install_dir : plugins_install_dir,
 )

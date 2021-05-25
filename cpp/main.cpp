@@ -1,5 +1,6 @@
 #include<stdio.h>
 #include <gst/gst.h>
+#include <gst/gst.h>
 
 
 typedef struct

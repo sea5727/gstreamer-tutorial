@@ -61,9 +61,8 @@
 #endif
 
 #include <gst/gst.h>
-#include <gst/rtp/gstrtpbuffer.h>
 
-#include "gstrtpchecker.h"
+#include "gstplugin.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_plugin_template_debug);
 #define GST_CAT_DEFAULT gst_plugin_template_debug
@@ -208,13 +207,8 @@ gst_plugin_template_sink_event (GstPad * pad, GstObject * parent,
 
   filter = GST_PLUGIN_TEMPLATE (parent);
 
-  GST_LOG_OBJECT (filter, "[TESTDEBUG] SANGHO Received %s event: %" GST_PTR_FORMAT,
+  GST_LOG_OBJECT (filter, "Received %s event: %" GST_PTR_FORMAT,
       GST_EVENT_TYPE_NAME (event), event);
-
-  // GST_LOG_OBJECT(filter, "[TESTDEBUG] SANGHO %d\n", GST_EVENT_TYPE (event));
-
-  g_print("[TESTDEBUG] type:%d\n", GST_EVENT_TYPE (event));
-
 
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_CAPS:
@@ -228,8 +222,6 @@ gst_plugin_template_sink_event (GstPad * pad, GstObject * parent,
       ret = gst_pad_event_default (pad, parent, event);
       break;
     }
-    case GST_EVENT_STREAM_START:
-    case GST_EVENT_SEGMENT:
     default:
       ret = gst_pad_event_default (pad, parent, event);
       break;
@@ -247,38 +239,11 @@ gst_plugin_template_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
   filter = GST_PLUGIN_TEMPLATE (parent);
 
-  // GstRTPBuffer rtp = { NULL };
-  // if (G_UNLIKELY (!gst_rtp_buffer_map (buf, GST_MAP_READ, &rtp))) {
-  //   g_print ("invalid rtp...\n");
-  //   gst_buffer_unref (buf);
-  //   return GST_FLOW_OK;
-  // }
-
-  if (filter->silent == FALSE) {
+  if (filter->silent == FALSE)
     g_print ("I'm plugged, therefore I'm in.\n");
-    filter->silent = TRUE;
-    // gboolean buf_discont = GST_BUFFER_IS_DISCONT (buf);
-
-    // GstClockTime pts = GST_BUFFER_PTS (buf);
-    // GstClockTime dts = GST_BUFFER_DTS (buf);
-    // GstClockTime duration = GST_BUFFER_DURATION (buf);
-
-    // guint32 ssrc = gst_rtp_buffer_get_ssrc (&rtp);
-    // guint16 seqnum = gst_rtp_buffer_get_seq (&rtp);
-    // guint32 rtptime = gst_rtp_buffer_get_timestamp (&rtp);
-
-    // g_print("rtp ssrc:%u, seqnum:%u, timestamp:%u, discond:%d, pts %" GST_TIME_FORMAT ", dts %" GST_TIME_FORMAT "\n",
-    //   ssrc,
-    //   seqnum,
-    //   rtptime,
-    //   buf_discont, GST_TIME_ARGS(pts), GST_TIME_ARGS(dts));
-    
-  }
 
   /* just push out the incoming buffer without touching it */
-  
   return gst_pad_push (filter->srcpad, buf);
-
 }
 
 
@@ -293,25 +258,29 @@ plugin_init (GstPlugin * plugin)
    *
    * exchange the string 'Template plugin' with your description
    */
-  GST_DEBUG_CATEGORY_INIT (gst_plugin_template_debug, "rtpchecker",
+  GST_DEBUG_CATEGORY_INIT (gst_plugin_template_debug, "plugin",
       0, "Template plugin");
 
-  return gst_element_register (plugin, "rtpchecker", GST_RANK_NONE,
+  return gst_element_register (plugin, "plugin", GST_RANK_NONE,
       GST_TYPE_PLUGIN_TEMPLATE);
 }
 
-
+/* PACKAGE: this is usually set by meson depending on some _INIT macro
+ * in meson.build and then written into and defined in config.h, but we can
+ * just set it ourselves here in case someone doesn't use meson to
+ * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
+ */
 #ifndef PACKAGE
 #define PACKAGE "myfirstplugin"
 #endif
 
+/* gstreamer looks for this structure to register plugins
+ *
+ * exchange the string 'Template plugin' with your plugin description
+ */
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
-    rtpchecker,
+    plugin,
     "Template plugin",
     plugin_init,
-    "1.16.1.0", 
-    "LGPL", 
-    "GStreamer template Plug-ins", 
-    "https://gstreamer.freedesktop.org")
-
+    PACKAGE_VERSION, GST_LICENSE, GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN)
