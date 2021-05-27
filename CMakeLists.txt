@@ -37,7 +37,9 @@ endif()
 # add_executable(no-rtpbin-tutorial-4 no-rtpbin-tutorial-4.cpp)
 # add_executable(rtpbin-tutorial-4 rtpbin-tutorial-4.cpp)
 
-add_subdirectory(plugin)
+# add_subdirectory(plugin)
+add_subdirectory(promise)
+add_subdirectory(structure)
 
 # add_executable(no-rtpbin-tutorial-5-mp4 no-rtpbin-tutorial-5-mp4.cpp)
 # add_executable(rtpbin-tutorial-5-mp4 rtpbin-tutorial-5-mp4.cpp)
