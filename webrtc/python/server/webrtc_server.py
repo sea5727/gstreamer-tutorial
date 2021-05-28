@@ -15,6 +15,7 @@ from gi.repository import GstWebRTC
 gi.require_version('GstSdp', '1.0')
 from gi.repository import GstSdp
 
+
 def check_plugins():
     needed = ["opus", "vpx", "nice", "webrtc", "dtls", "srtp", "rtp", "rtpmanager", "videotestsrc", "audiotestsrc"]
     missing = list(filter(lambda p: Gst.Registry.get().find_plugin(p) is None, needed))
@@ -24,93 +25,15 @@ def check_plugins():
     return True
 
 PIPELINE_DESC = '''
-webrtcbin name=sendrecv bundle-policy=max-bundle stun-server=stun://stun.l.google.com:19302
- videotestsrc is-live=true pattern=ball ! videoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay !
- queue ! application/x-rtp,media=video,encoding-name=VP8,payload=97 ! sendrecv.
- audiotestsrc is-live=true wave=red-noise ! audioconvert ! audioresample ! queue ! opusenc ! rtpopuspay !
- queue ! application/x-rtp,media=audio,encoding-name=OPUS,payload=96 ! sendrecv.
+webrtcbin name=sendrecv bundle-policy=max-bundle stun-server=stun://sanghotest.iptime.org
+ videotestsrc is-live=true pattern=ball ! videoconvert ! queue name=q1 ! vp8enc deadline=1 ! rtpvp8pay !
+ queue name=q2 ! application/x-rtp,media=video,encoding-name=VP8,payload=97 ! sendrecv.
+ audiotestsrc is-live=true wave=red-noise ! audioconvert ! audioresample ! queue name=q4 ! opusenc ! rtpopuspay !
+ queue name=q3 ! application/x-rtp,media=audio,encoding-name=OPUS,payload=96 ! sendrecv.
 '''
     
+mainloop = None
 
-class WebRTCPeer:
-    def __init__(self, address, port):
-        '''
-        '''
-        print('__init__ thread:', threading.get_ident())
-        self.address = address
-        self.port = port
-        self.server = 'wss://{address}:{port}'
-    def pipeline(self):
-        '''
-        '''
-        print('pipeline thread:', threading.get_ident())
-        self.pipe = Gst.parse_launch(PIPELINE_DESC)
-        self.webrtcbin = self.pipe.get_by_name('sendrecv')
-        # self.webrtcbin.connect('create-offer')
-        # self.webrtcbin.connect('create-answer')
-        # self.webrtcbin.connect('set-local-description')
-        # self.webrtcbin.connect('set-remote-description')
-        # self.webrtcbin.connect('add-ice-candidate')
-        # self.webrtcbin.connect('get-stats')
-        # self.webrtcbin.connect('on-negotiation-needed')
-        # self.webrtcbin.connect('on-ice-candidate')
-        # self.webrtcbin.connect('on-new-transceiver')
-        # self.webrtcbin.connect('on-data-channel')
-        # self.webrtcbin.connect('add-transceiver')
-        # self.webrtcbin.connect('get-transceivers')
-        # self.webrtcbin.connect('get-transceiver')
-        # self.webrtcbin.connect('add-turn-server')
-        # self.webrtcbin.connect('create-data-channel')
-
-        # self.webrtcbin.connect('on-negotiation-needed', self.on_negotiation_needed, None)
-        self.webrtcbin.connect('on-ice-candidate', self.on_ice_candidate, None)
-        self.webrtcbin.connect('pad-added', self.on_incoming_stream, None)
-        self.pipe.set_state(Gst.State.PLAYING)
-
-    def on_negotiation_needed(self, element, mydata):
-        '''
-        '''
-        print('on_negotiation_needed thread:', threading.get_ident())
-        promise = Gst.Promise.new_with_change_func(self.on_offer_created, element, None)
-        element.emit('create-offer', None, promise)
-
-    def on_ice_candidate(self, element, sdpMLineIndex, candidate, _):
-        '''
-        '''
-        print(f'on_ice_candidate thread: {threading.get_ident()}')
-        
-
-    def on_incoming_stream(self, param1):
-        '''
-        '''
-        print('on_incoming_stream thread:', threading.get_ident())
-
-    def on_offer_created(self, promise, element, _):
-        '''
-        '''
-        print(f'on_offer_created thread: {threading.get_ident()}, element:{type(element)}')
-        promise.wait()
-        reply = promise.get_reply()
-        offer = reply.get_value('offer')
-        promise = Gst.Promise.new_with_change_func(self.on_set_local_description, element, None)
-        element.emit('set-local-description', offer, promise)
-        self.send_offer(offer)
-    
-    def on_set_local_description(self, promise, element, _):
-        '''
-        '''
-        print(f'on_set_local_description thread: {threading.get_ident()}, element:{type(element)}')
-        promise.wait()
-
-
-
-    def send_offer(self, offer):
-        '''
-        '''
-        print(f'send_offer:{offer}, thread: {threading.get_ident()}')
-        text = offer.sdp.as_text()
-        print('sdp:', text)
-        
 
 class WebRTCServer:
     _id = 0
@@ -124,6 +47,12 @@ class WebRTCServer:
 
         self.pipe = Gst.parse_launch(PIPELINE_DESC)
         self.webrtc = self.pipe.get_by_name('sendrecv')
+        
+        
+        # ice_agent = self.webrtc.get_property('ice-agent')
+        # print('self.webrtc:', type(ice_agent), ', dir:', dir(ice_agent))
+        
+        # gst_webrtc_ice_set_is_controller 
         self.webrtc.connect('on-ice-candidate', self.onIceCandidate, self.websocket)
         self.webrtc.connect('pad-added', self.onPadAdded)
 
@@ -132,19 +61,80 @@ class WebRTCServer:
         '''
         '''
 
-
+        
     def onIceCandidate(self, element, sdpMLineIndex, candidate, conn):
         '''
         '''
-        print('onIceCandidate thread:', threading.get_ident())
+        print('onIceCandidate thread:', threading.get_ident(), 'candidate:', candidate)
 
-        icemsg = json.dumps({'event': {'type': 'ice', 'candidate': candidate, 'sdpMLineIndex': sdpMLineIndex}})
-        # conn.send(icemsg)
+        # icemsg = json.dumps({'event': {'type': 'ice', 'candidate': candidate, 'sdpMLineIndex': sdpMLineIndex}})
+        icemsg = json.dumps({'event': {'type': 'ice', 'candidate': { 'candidate': candidate, 'sdpMLineIndex': sdpMLineIndex}}})
+        asyncio.ensure_future(conn.send(icemsg), loop=mainloop)
 
-    def onPadAdded(self, param1):
+    def onDecodebinPadAdded(self, _, pad):
+        '''
+        '''
+        if not pad.has_current_caps():
+            print (pad, 'has no caps, ignoring')
+            return
+        
+        caps = pad.get_current_caps()
+
+        for i in range(caps.get_size()):
+            structure = caps.get_structure(i)
+            name = structure.get_name()
+            print('name:', name)
+        
+            if name == 'video/x-raw':
+                print('on_incoming_decodebin_stream -> video')
+
+                # q = Gst.ElementFactory.make('queue')
+                # q.set_property('name', 'q5')
+                # conv = Gst.ElementFactory.make('videoconvert')
+                # sink = Gst.ElementFactory.make('autovideosink')
+                # self.pipe.add(q)
+                # self.pipe.add(conv)
+                # self.pipe.add(sink)
+                # self.pipe.sync_children_states()
+                # pad.link(q.get_static_pad('sink'))
+                # q.link(conv)
+                # conv.link(sink)
+                
+                # self.pipe.set_state(Gst.State.READY)
+                # self.pipe.add(q)
+                # self.pipe.add(conv)
+                # self.pipe.add(sink)
+                # pad.link(q.get_static_pad('sink'))
+                # q.link(conv)
+                # conv.link(sink)
+                # self.pipe.set_state(Gst.State.PLAYING)
+            elif name == 'audio/x-raw':
+                print('on_incoming_decodebin_stream -> audio')
+            #     q = Gst.ElementFactory.make('queue')
+            #     conv = Gst.ElementFactory.make('audioconvert')
+            #     resample = Gst.ElementFactory.make('audioresample')
+            #     sink = Gst.ElementFactory.make('autoaudiosink')
+            #     self.pipe.add(q)
+            #     self.pipe.add(conv)
+            #     self.pipe.add(resample)
+            #     self.pipe.add(sink)
+            #     self.pipe.sync_children_states()
+            #     pad.link(q.get_static_pad('sink'))
+            #     q.link(conv)
+            #     conv.link(resample)
+            #     resample.link(sink)
+
+    def onPadAdded(self, element, pad):
         '''
         '''
         print('onPadAdded thread:', threading.get_ident())
+
+        decodebin = Gst.ElementFactory.make('decodebin')
+        decodebin.connect('pad-added', self.onDecodebinPadAdded)
+        self.pipe.add(decodebin)
+        self.webrtc.link(decodebin)
+        decodebin.sync_state_with_parent()
+
     
     def onSetLocalDescription(self, promise, param1):
         '''
@@ -181,6 +171,7 @@ class WebRTCServer:
     def addIceCandidate(self, sdpmlineindex, candidate):
         '''
         '''
+        print('addIceCandidate thread:', threading.get_ident())
         self.webrtc.emit('add-ice-candidate', sdpmlineindex, candidate)
 
 
@@ -218,6 +209,7 @@ class WebSocketServer:
                         }
                     }
                 )
+                print(f'answer sdp:\n{answer_sdp}')
                 await conn.send(res_msg)
             
             elif 'event' in jsondata:
@@ -234,6 +226,18 @@ class WebSocketServer:
 if __name__ == '__main__':
     print('main start thread:', threading.get_ident())
     Gst.init(None)
+
+    # my_pipeline = Gst.Pipeline.new("testpipeline")
+    # audiotestsrc = Gst.ElementFactory.make('audiotestsrc')
+    # udpsink = Gst.ElementFactory.make('udpsink')
+    # udpsink.set_property("host", '192.168.0.192')
+    # udpsink.set_property('port', 12345)
+    # my_pipeline.add(audiotestsrc)
+    # my_pipeline.add(udpsink)
+    # audiotestsrc.link(udpsink)
+    # my_pipeline.set_state(Gst.State.PLAYING)
+
+
     if not check_plugins():
         sys.exit(1)
     
@@ -250,9 +254,9 @@ if __name__ == '__main__':
     # peer = WebRTCPeer(args.listen, args.port)
     # peer.pipeline()
 
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(websock_server)
-    loop.run_forever()
+    mainloop = asyncio.get_event_loop()
+    mainloop.run_until_complete(websock_server)
+    mainloop.run_forever()
 
     sys.exit()
 

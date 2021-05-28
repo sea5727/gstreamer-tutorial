@@ -8,7 +8,7 @@
 <body>
   <h1>Realtime communication with WebRTC</h1>
 
-  <video id="localVideo" autoplay playsinline></video>
+  <video id="localVideo" autoplay playsinline muted></video>
   <video id="remoteVideo" autoplay playsinline></video>
 
   <div>
@@ -22,6 +22,7 @@
     let ws = null
     
     const localVideo = document.getElementById('localVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
     const startButton = document.getElementById('startButton')
     const offerButton = document.getElementById('offerButton')
     
@@ -61,17 +62,15 @@
       const servers = null
       const config = {
         'iceServers' : [{
-          urls : 'stun:18.191.223.12:3478'
+          urls : 'stun:sanghotest.iptime.org'
         }]
       }
 
       localPeerConnection = new RTCPeerConnection(config);
-      localPeerConnection.addEventListener('icecandidate', (event) => {
+      localPeerConnection.onicecandidate = (event) => {
         const peerConnection = event.target
 
         if (event.candidate && ws) {
-          // const iceCandidate = new RTCIceCandidate(event.candidate)
-          console.log('event.candidate:', event.candidate.candidate)
           
           message = {
             event : {
@@ -82,12 +81,34 @@
           }
           ws.send(JSON.stringify(message))
         }
+      }
 
-      });
-      localPeerConnection.addStream(localStream);
+      localPeerConnection.onaddstream = (event) => {
+        console.log('!!!!!!!!!!!!!!! pc.onaddstream')
+  //       remoteStream = event.stream;
+  // remoteVideo.srcObject = remoteStream;
+      }
+      localPeerConnection.onremovestream = (event) => {
+        console.log('pc.onremovestream')
+      }
+      localPeerConnection.onnegotiationneeded = (event) => {
+          console.log('pc.onnegotiationneeded ', event)
+      }
+      localPeerConnection.ontrack = (event, stream) => {
+          console.log('pc.ontrack')
+      }
+      
+      // localPeerConnection.addTransceiver('audio', {direction:'sendrecv'})
+      // localPeerConnection.addTransceiver('video', {direction:'sendrecv'})
+      localStream.getTracks().forEach((track) => {
+        console.log('pc.addTrack')
+        localPeerConnection.addTrack(track, localStream)
+      })
+      // localPeerConnection.addStream(localStream)
+      
       try{
 
-        ws = new WebSocket("wss://192.168.0.59:8999/webrtc");
+        ws = new WebSocket("wss://sanghotest.iptime.org:8999/webrtc");
         ws.onopen = async () => {
           description = await localPeerConnection.createOffer(offerOptions)
           await localPeerConnection.setLocalDescription(description)
@@ -97,16 +118,21 @@
               sdp : localPeerConnection.localDescription.sdp,
             }
           }
+          console.log(`offer sdp : \n${localPeerConnection.localDescription.sdp}`)
           ws.send(JSON.stringify(message))
         }
         ws.onmessage = async (event) => {
-          console.log('event.data:', event.data)
+
           res_msg = JSON.parse(event.data)
           if(res_msg.response){
             if(res_msg.response.type == 'answer'){
               description = new RTCSessionDescription({ type : 'answer', sdp : res_msg.response.sdp})
               await localPeerConnection.setRemoteDescription(description)
-              console.log('setRemoteDescription success')
+
+            }
+          } else if(res_msg.event) {
+            if(res_msg.event.type == 'ice') {
+              await localPeerConnection.addIceCandidate(new RTCIceCandidate(res_msg.event.candidate));
             }
           }
         }
