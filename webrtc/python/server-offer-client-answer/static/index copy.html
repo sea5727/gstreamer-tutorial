@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Realtime communication with WebRTC</title>
+  <link rel="stylesheet" href="css/main.css" />
+</head>
+
+<body>
+  <h1>Realtime communication with WebRTC</h1>
+
+  <video id="video1" autoplay playsinline></video>
+  <video id="video2" autoplay playsinline></video>
+
+  <div>
+    <button id="startButton">Start</button>
+    <button id="callButton">Call</button>
+    <button id="hangupButton">Hang Up</button>
+  </div>
+  
+  <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
+  
+
+
+        <script type="text/javascript">
+            'use strict';
+
+            // Set up media stream constant and parameters.
+            
+            // In this codelab, you will be streaming video only: "video: true".
+            // Audio will not be streamed because it is set to "audio: false" by default.
+            const mediaStreamConstraints = {
+              audio: true,
+              video: true,
+            };
+            
+            // Set up to exchange only video.
+            const offerOptions = {
+              offerToReceiveAudio: 1,
+              offerToReceiveVideo: 1,
+            };
+            
+            // Define initial start time of the call (defined as connection between peers).
+            let startTime = null;
+            
+            // Define peer connections, streams and video elements.
+            const video1 = document.getElementById('video1');
+            const video2 = document.getElementById('video2');
+            
+            let localStream;
+            let remoteStream;
+            
+            let localPeerConnection;
+            let remotePeerConnection;
+            
+                   
+            
+            // Add behavior for video streams.
+            
+            // Logs a message with the id and size of a video element.
+            function logVideoLoaded(event) {
+              const video = event.target;
+              trace(`${video.id} videoWidth: ${video.videoWidth}px, ` +
+                    `videoHeight: ${video.videoHeight}px.`);
+            }
+            
+            // Logs a message with the id and size of a video element.
+            // This event is fired when video begins streaming.
+            function logResizedVideo(event) {
+              logVideoLoaded(event);
+            
+              if (startTime) {
+                const elapsedTime = window.performance.now() - startTime;
+                startTime = null;
+                trace(`Setup time: ${elapsedTime.toFixed(3)}ms.`);
+              }
+            }
+            
+            video1.addEventListener('loadedmetadata', logVideoLoaded);
+            video2.addEventListener('loadedmetadata', logVideoLoaded);
+            video2.addEventListener('onresize', logResizedVideo);
+            
+
+            // Define and add behavior to buttons.
+            
+            // Define action buttons.
+            const startButton = document.getElementById('startButton');
+            const callButton = document.getElementById('callButton');
+            const hangupButton = document.getElementById('hangupButton');
+            
+            // Set up initial action buttons status: disable call and hangup.
+            callButton.disabled = true;
+            hangupButton.disabled = true;
+            
+            
+            // Handles start button action: creates local MediaStream.
+            async function startAction() {
+              startButton.disabled = true;
+              try{
+                const mediaStream = await navigator.mediaDevices.getUserMedia(mediaStreamConstraints)
+                video1.srcObject = mediaStream;
+                localStream = mediaStream;
+                trace('Received local stream.');
+                callButton.disabled = false;  // Enable call button.
+              } catch (error) {
+                trace(`navigator.getUserMedia error: ${error.toString()}.`);
+              }
+              trace('Requesting local stream.');
+            }
+            
+            // Handles call button action: creates peer connection.
+            async function callAction() {
+              callButton.disabled = true;
+              hangupButton.disabled = false;
+            
+              trace('Starting call.');
+              startTime = window.performance.now();
+          
+              const servers = null;  // Allows for RTC server configuration.
+
+              const config = {
+                    'iceServers' : [ { 
+                            urls : 'stun:18.191.223.12:3478' 
+                        }]
+                  }
+            
+              // Create peer connections and add behavior.
+              localPeerConnection = new RTCPeerConnection(config);
+              trace('Created local peer connection object localPeerConnection.');
+
+              localPeerConnection.onicecandidate = async (event) => {
+                const peerConnection = event.target;
+                const iceCandidate = event.candidate;
+              
+                if (iceCandidate) {
+                  let str = JSON.stringify(iceCandidate)
+                  console.log('local newIceCandidate:', str)
+                  const newIceCandidate = new RTCIceCandidate(iceCandidate);
+                  
+                  const otherPeer = getOtherPeer(peerConnection);
+              
+                  await otherPeer.addIceCandidate(newIceCandidate)
+              
+                  trace(`${getPeerName(peerConnection)} ICE candidate:\n` +
+                        `${event.candidate.candidate}.`);
+                }
+              }
+            
+              remotePeerConnection = new RTCPeerConnection(config);
+              trace('Created remote peer connection object remotePeerConnection.');
+              
+              remotePeerConnection.onicecandidate = async (event) => {
+                const peerConnection = event.target;
+                const iceCandidate = event.candidate;
+              
+                if (iceCandidate) {
+                  let str = JSON.stringify(iceCandidate)
+                  console.log('remote newIceCandidate:', str)
+                  const newIceCandidate = new RTCIceCandidate(iceCandidate);
+
+                  const otherPeer = getOtherPeer(peerConnection);
+                  try{
+                    await otherPeer.addIceCandidate(newIceCandidate)
+                  } catch (error) {
+                    console.error(error.toString())
+                  }
+                  trace(`${getPeerName(peerConnection)} ICE candidate:\n` + `${event.candidate.candidate}.`);
+                }
+              }
+              localPeerConnection.onaddstream = (event) => {
+                console.log('gotRemoteMediaStream event:', event)
+                const mediaStream = event.stream;
+                video2.srcObject = mediaStream;
+                remoteStream = mediaStream;
+                trace('Remote peer connection received remote stream.');
+              }
+            
+              // Add local stream to connection and create offer to connect.
+              
+              localStream.getTracks().forEach((track) => {
+                console.log('pc.addTrack')
+                localPeerConnection.addTrack(track, localStream)
+              })
+            
+              try{
+                console.log('start signaling')
+                const offer_description = await localPeerConnection.createOffer()
+                console.log('offer_description:', offer_description)
+                await localPeerConnection.setLocalDescription(offer_description)
+                await remotePeerConnection.setRemoteDescription(offer_description)
+                const answer_description = await remotePeerConnection.createAnswer()
+                await remotePeerConnection.setLocalDescription(answer_description)
+                await localPeerConnection.setRemoteDescription(answer_description)
+                console.log('end signaling')
+              } catch (error) {
+                console.error(error.toString())
+              }
+
+            }
+            
+            // Handles hangup action: ends up call, closes connections and resets peers.
+            function hangupAction() {
+              localPeerConnection.close();
+              remotePeerConnection.close();
+              localPeerConnection = null;
+              remotePeerConnection = null;
+              hangupButton.disabled = true;
+              callButton.disabled = false;
+              trace('Ending call.');
+            }
+            
+            // Add click event handlers for buttons.
+            startButton.addEventListener('click', startAction);
+            callButton.addEventListener('click', callAction);
+            hangupButton.addEventListener('click', hangupAction);
+            
+            
+            // Define helper functions.
+            
+            // Gets the "other" peer connection.
+            function getOtherPeer(peerConnection) {
+              return (peerConnection === localPeerConnection) ?
+                  remotePeerConnection : localPeerConnection;
+            }
+            
+            // Gets the name of a certain peer connection.
+            function getPeerName(peerConnection) {
+              return (peerConnection === localPeerConnection) ?
+                  'localPeerConnection' : 'remotePeerConnection';
+            }
+            
+            // Logs an action (text) and the time when it happened on the console.
+            function trace(text) {
+              text = text.trim();
+              const now = (window.performance.now() / 1000).toFixed(3);
+            
+              console.log(now, text);
+            }
+            
+
+
+        </script>
+      </body>
+      </html>

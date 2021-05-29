@@ -25,51 +25,100 @@ def check_plugins():
     return True
 
 PIPELINE_DESC = '''
-webrtcbin name=sendrecv bundle-policy=max-bundle stun-server=stun://stun.l.google.com:19302
+webrtcbin name=sendrecv bundle-policy=max-bundle 
  videotestsrc is-live=true pattern=ball ! videoconvert ! queue name=q1 ! vp8enc deadline=1 ! rtpvp8pay !
  queue name=q2 ! application/x-rtp,media=video,encoding-name=VP8,payload=97 ! sendrecv.
  audiotestsrc is-live=true wave=red-noise ! audioconvert ! audioresample ! queue name=q4 ! opusenc ! rtpopuspay !
  queue name=q3 ! application/x-rtp,media=audio,encoding-name=OPUS,payload=96 ! sendrecv.
 '''
+
+# PIPELINE_DESC = '''
+# webrtcbin name=sendrecv bundle-policy=max-bundle stun-server=stun://sanghotest.iptime.org
+#  videotestsrc is-live=true pattern=ball ! videoconvert ! queue name=q1 ! vp8enc deadline=1 ! rtpvp8pay !
+#  queue name=q2 ! application/x-rtp,media=video,encoding-name=VP8,payload=97 ! sendrecv.
+#  audiotestsrc is-live=true wave=red-noise ! audioconvert ! audioresample ! queue name=q4 ! opusenc ! rtpopuspay !
+#  queue name=q3 ! application/x-rtp,media=audio,encoding-name=OPUS,payload=96 ! sendrecv.
+# '''
     
 mainloop = None
 
 
 class WebRTCServer:
     _id = 0
-    def __init__(self, websocket):
+    def __init__(self, websocket, type):
         '''
         need a mutex?
         '''
         self.id = WebRTCServer._id
         WebRTCServer._id += 1
         self.websocket = websocket
+        if type == 'sender':
+            '''
+            '''
+            print('try sender.. ')
+            self.pipe = Gst.parse_launch(PIPELINE_DESC)
+            self.webrtc = self.pipe.get_by_name('sendrecv')
+            self.webrtc.connect('on-negotiation-needed', self.onNegotiationNeeded, self.websocket)
+            self.webrtc.connect('on-ice-candidate', self.onIceCandidate, self.websocket)
+            self.webrtc.connect('pad-added', self.onPadAdded)
+            self.pipe.set_state(Gst.State.PLAYING)
+            print('try sender end..')
+        elif type == 'receiver':
+            self.pipe = Gst.parse_launch(PIPELINE_DESC)
+            self.webrtc = self.pipe.get_by_name('sendrecv')
+            self.webrtc.connect('on-ice-candidate', self.onIceCandidate, self.websocket)
+            self.webrtc.connect('pad-added', self.onPadAdded)
 
-        self.pipe = Gst.parse_launch(PIPELINE_DESC)
-        self.webrtc = self.pipe.get_by_name('sendrecv')
-        
-        
-        # ice_agent = self.webrtc.get_property('ice-agent')
-        # print('self.webrtc:', type(ice_agent), ', dir:', dir(ice_agent))
-        
-        # gst_webrtc_ice_set_is_controller 
-        self.webrtc.connect('on-ice-candidate', self.onIceCandidate, self.websocket)
-        self.webrtc.connect('pad-added', self.onPadAdded)
-
-        self.pipe.set_state(Gst.State.PLAYING)
+            self.pipe.set_state(Gst.State.PLAYING)
     def startPipeline(self):
         '''
         '''
+    async def testfunction(self, param):
+        '''
+        '''
+        print('testfunction thread:', threading.get_ident(), 'param:', param)
+        
+    def onCreateOffer(self, promise, conn, _):
+        '''
+        '''
+        print('onCreateOffer thread:', threading.get_ident())
+        promise.wait()
+        
+        reply = promise.get_reply()
+        offer = reply.get_value('offer')
+        
+        promise = Gst.Promise.new()
+        print('offer:', offer.sdp.as_text())
+        self.webrtc.emit('set-local-description', offer, promise)
+        
+        promise.interrupt()
 
+        offer_msg = json.dumps({
+            'request' : {
+                'type' : 'offer',
+                'sdp' : offer.sdp.as_text(),
+                }
+            }
+        )
+        print('send offer_msg:', offer_msg)
+        asyncio.run_coroutine_threadsafe(conn.send(offer_msg), loop=mainloop)
+    def onNegotiationNeeded(self, element, conn):
+        '''
+        '''
+        promise = Gst.Promise.new_with_change_func(self.onCreateOffer, conn, None)
+        self.webrtc.emit('create-offer', None, promise)
+
+        
         
     def onIceCandidate(self, element, sdpMLineIndex, candidate, conn):
         '''
         '''
         print('onIceCandidate thread:', threading.get_ident(), 'candidate:', candidate, 'sdpMLineIndex:', sdpMLineIndex)
 
-        # icemsg = json.dumps({'event': {'type': 'ice', 'candidate': candidate, 'sdpMLineIndex': sdpMLineIndex}})
+        # # icemsg = json.dumps({'event': {'type': 'ice', 'candidate': candidate, 'sdpMLineIndex': sdpMLineIndex}})
         icemsg = json.dumps({'event': {'type': 'ice', 'candidate': { 'candidate': candidate, 'sdpMLineIndex': sdpMLineIndex}}})
-        asyncio.ensure_future(conn.send(icemsg), loop=mainloop)
+        # print('send ==> icecandidate:', icemsg)
+        asyncio.run_coroutine_threadsafe(conn.send(icemsg), loop=mainloop)
 
     def onDecodebinPadAdded(self, _, pad):
         '''
@@ -87,6 +136,20 @@ class WebRTCServer:
         
             if name == 'video/x-raw':
                 print('on_incoming_decodebin_stream -> video')
+                q = Gst.ElementFactory.make('queue')
+                q.set_property('name', 'q5')
+                conv = Gst.ElementFactory.make('videoconvert')
+                sink = Gst.ElementFactory.make('autovideosink')
+                self.pipe.add(q)
+                self.pipe.add(conv)
+                self.pipe.add(sink)
+                self.pipe.sync_children_states()
+                pad.link(q.get_static_pad('sink'))
+                q.link(conv)
+                conv.link(sink)
+
+
+
 
                 # q = Gst.ElementFactory.make('queue')
                 # q.set_property('name', 'q5')
@@ -110,6 +173,19 @@ class WebRTCServer:
                 # self.pipe.set_state(Gst.State.PLAYING)
             elif name == 'audio/x-raw':
                 print('on_incoming_decodebin_stream -> audio')
+                q = Gst.ElementFactory.make('queue')
+                conv = Gst.ElementFactory.make('audioconvert')
+                resample = Gst.ElementFactory.make('audioresample')
+                sink = Gst.ElementFactory.make('autoaudiosink')
+                self.pipe.add(q)
+                self.pipe.add(conv)
+                self.pipe.add(resample)
+                self.pipe.add(sink)
+                self.pipe.sync_children_states()
+                pad.link(q.get_static_pad('sink'))
+                q.link(conv)
+                conv.link(resample)
+                resample.link(sink)
             #     q = Gst.ElementFactory.make('queue')
             #     conv = Gst.ElementFactory.make('audioconvert')
             #     resample = Gst.ElementFactory.make('audioresample')
@@ -145,16 +221,28 @@ class WebRTCServer:
         promise.wait()
         reply = promise.get_reply()
         
+    def setAnswer(self, sdp):
+        '''
+        '''
+        res, sdpmsg = GstSdp.SDPMessage.new()
+        GstSdp.sdp_message_parse_buffer(bytes(sdp.encode()), sdpmsg)
+        answer = GstWebRTC.WebRTCSessionDescription.new(GstWebRTC.WebRTCSDPType.ANSWER, sdpmsg)
+        promise = Gst.Promise.new()
+        self.webrtc.emit('set-remote-description', answer, promise)
+        promise.interrupt()
+        print('set-remote-description end..')
 
-    def setRemoteDescription(self, offer_sdp):
+    def setReceiver(self, offer_sdp):
         '''
         '''
-        print('setRemoteDescription thread:', threading.get_ident())
+        print('setReceiver thread:', threading.get_ident())
         result, offer = GstSdp.SDPMessage.new()
         assert(result == GstSdp.SDPResult.OK)
         GstSdp.sdp_message_parse_buffer(offer_sdp.encode(), offer)
         description = GstWebRTC.WebRTCSessionDescription.new(GstWebRTC.WebRTCSDPType.OFFER, offer)
-        self.webrtc.emit('set-remote-description', description, None)
+        promise = Gst.Promise.new()
+        self.webrtc.emit('set-remote-description', description, promise)
+        promise.interrupt()
 
         promise = Gst.Promise.new()
         self.webrtc.emit('create-answer', None, promise)
@@ -196,22 +284,41 @@ class WebSocketServer:
             print('websocket accept thread:', threading.get_ident())
             jsondata = json.loads(message)
             if 'request' in jsondata:
-                assert(jsondata['request']['type'] == 'offer')
-                offer_sdp = jsondata['request']['sdp']
-                
-                webrtc = WebRTCServer(conn)
-                answer_sdp = webrtc.setRemoteDescription(offer_sdp)
+                assert('type' in jsondata['request'])
+                if jsondata['request']['type'] == 'offer':
+                    offer_sdp = jsondata['request']['sdp']
+                    
+                    webrtc = WebRTCServer(conn, 'receiver')
+                    answer_sdp = webrtc.setReceiver(offer_sdp)
 
-                res_msg = json.dumps({
-                    'response' : {
-                        'type' : 'answer',
-                        'sdp' : answer_sdp,
+                    res_msg = json.dumps({
+                        'response' : {
+                            'type' : 'answer',
+                            'sdp' : answer_sdp,
+                            }
                         }
-                    }
-                )
-                print(f'answer sdp:\n{answer_sdp}')
-                await conn.send(res_msg)
-            
+                    )
+                    print(f'send ==> answer sdp:\n{answer_sdp}')
+                    await conn.send(res_msg)
+                elif jsondata['request']['type'] == 'needCall':
+                    '''
+                    '''
+
+                    webrtc = WebRTCServer(conn, 'sender')
+                    asyncio.ensure_future(webrtc.testfunction('1'), loop=mainloop)
+                    # webrtc.setLocalDescription()
+            elif 'response' in jsondata:
+                assert('type' in jsondata['response'])
+                
+                if jsondata['response']['type'] == 'answer':
+                    answer_sdp = jsondata['response']['sdp']
+                    print(f'recv <== answer sdp :' , answer_sdp)
+
+                    webrtc.setAnswer(answer_sdp)
+
+
+
+                    
             elif 'event' in jsondata:
                 assert('type' in jsondata['event'])
                 assert('candidate' in jsondata['event'])
@@ -219,6 +326,7 @@ class WebSocketServer:
                 if jsondata['event']['type'] == 'ice':
                     candidate = jsondata['event']['candidate']
                     sdpMLineIndex = jsondata['event']['sdpMLineIndex']
+                    print(f'recv ==> sdpMLineIndex: {sdpMLineIndex} candidate: {candidate}')
                     webrtc.addIceCandidate(sdpMLineIndex, candidate)
                     
 
