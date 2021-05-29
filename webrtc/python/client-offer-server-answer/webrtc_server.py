@@ -27,9 +27,9 @@ def check_plugins():
 PIPELINE_DESC = '''
 webrtcbin name=sendrecv bundle-policy=max-bundle 
  videotestsrc is-live=true pattern=ball ! videoconvert ! queue name=q1 ! vp8enc deadline=1 ! rtpvp8pay !
- queue name=q2 ! application/x-rtp,media=video,encoding-name=VP8,payload=97 ! sendrecv.
+ queue name=q2 ! application/x-rtp,media=video,encoding-name=VP8,payload=96 ! sendrecv.
  audiotestsrc is-live=true wave=red-noise ! audioconvert ! audioresample ! queue name=q4 ! opusenc ! rtpopuspay !
- queue name=q3 ! application/x-rtp,media=audio,encoding-name=OPUS,payload=96 ! sendrecv.
+ queue name=q3 ! application/x-rtp,media=audio,encoding-name=OPUS,payload=111 ! sendrecv.
 '''
 
 # PIPELINE_DESC = '''
@@ -82,6 +82,7 @@ class WebRTCServer:
         '''
         '''
         print('onCreateOffer thread:', threading.get_ident())
+        exit(0)
         promise.wait()
         
         reply = promise.get_reply()
@@ -115,9 +116,7 @@ class WebRTCServer:
         '''
         print('onIceCandidate thread:', threading.get_ident(), 'candidate:', candidate, 'sdpMLineIndex:', sdpMLineIndex)
 
-        # # icemsg = json.dumps({'event': {'type': 'ice', 'candidate': candidate, 'sdpMLineIndex': sdpMLineIndex}})
         icemsg = json.dumps({'event': {'type': 'ice', 'candidate': { 'candidate': candidate, 'sdpMLineIndex': sdpMLineIndex}}})
-        # print('send ==> icecandidate:', icemsg)
         asyncio.run_coroutine_threadsafe(conn.send(icemsg), loop=mainloop)
 
     def onDecodebinPadAdded(self, _, pad):
@@ -139,8 +138,8 @@ class WebRTCServer:
                 q = Gst.ElementFactory.make('queue')
                 q.set_property('name', 'q5')
                 conv = Gst.ElementFactory.make('videoconvert')
-                # sink = Gst.ElementFactory.make('fakesink') // if no video
-                sink = Gst.ElementFactory.make('autovideosink')
+                sink = Gst.ElementFactory.make('fakesink')
+                # sink = Gst.ElementFactory.make('autovideosink')
                 self.pipe.add(q)
                 self.pipe.add(conv)
                 self.pipe.add(sink)
@@ -154,8 +153,8 @@ class WebRTCServer:
                 q = Gst.ElementFactory.make('queue')
                 conv = Gst.ElementFactory.make('audioconvert')
                 resample = Gst.ElementFactory.make('audioresample')
-                # sink = Gst.ElementFactory.make('autoaudiosink') // if no audio
-                sink = Gst.ElementFactory.make('autoaudiosink')
+                sink = Gst.ElementFactory.make('fakesink')
+                # sink = Gst.ElementFactory.make('autoaudiosink')
                 self.pipe.add(q)
                 self.pipe.add(conv)
                 self.pipe.add(resample)
@@ -211,6 +210,16 @@ class WebRTCServer:
         self.webrtc.emit('set-remote-description', description, promise)
         promise.interrupt()
 
+
+        direction_audio = GstWebRTC.WebRTCRTPTransceiverDirection.SENDRECV
+        caps_audio = Gst.caps_from_string("application/x-rtp,media=audio,encoding-name=OPUS,payload=111")
+        direction_video = GstWebRTC.WebRTCRTPTransceiverDirection.SENDRECV
+        caps_vedio = Gst.caps_from_string("application/x-rtp,media=video,encoding-name=VP8,payload=96")
+        
+        self.webrtc.emit('add-transceiver', direction_audio, caps_audio)
+        self.webrtc.emit('add-transceiver', direction_video, caps_vedio)
+
+
         promise = Gst.Promise.new()
         self.webrtc.emit('create-answer', None, promise)
         promise.wait()
@@ -254,6 +263,7 @@ class WebSocketServer:
                 assert('type' in jsondata['request'])
                 if jsondata['request']['type'] == 'offer':
                     offer_sdp = jsondata['request']['sdp']
+                    print('[recv] offer:', offer_sdp)
                     
                     webrtc = WebRTCServer(conn, 'receiver')
                     answer_sdp = webrtc.setReceiver(offer_sdp)

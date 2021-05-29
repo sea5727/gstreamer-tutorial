@@ -143,10 +143,6 @@
                     }
                   }
 
-                  function onIceConnectionStateChange(event) {
-                    const peerConnection = event.target;
-                    console.log(`ICE state: ` + `${peerConnection.iceConnectionState}.`);
-                  }
                   function onAddStream(event) {
                     console.log('gotRemoteMediaStream event:', event)
                     const mediaStream = event.stream;
@@ -155,7 +151,6 @@
                   }
                   
                   localPeerConnection.addEventListener('icecandidate', onIceCandidate);
-                  localPeerConnection.addEventListener('iceconnectionstatechange', onIceConnectionStateChange);
                   localPeerConnection.addEventListener('addstream', onAddStream);
                   localStream.getTracks().forEach((track) => {
                     console.log('pc.addTrack')
@@ -172,21 +167,15 @@
                     if(msg.request){
                       if(msg.request.type == 'offer') {
                         const description = new RTCSessionDescription({ type : 'offer', sdp : msg.request.sdp})
-                        console.log('localPeerConnection.setRemoteDescription : ', description)
                         await localPeerConnection.setRemoteDescription(description)
-                        console.log('localPeerConnection.createAnswer?')
                         let answer_description = await localPeerConnection.createAnswer()
-                        console.log('localPeerConnection.createAnswer end')
-                        
                         await localPeerConnection.setLocalDescription(answer_description)
                         const response_msg = JSON.stringify({ response : { type : 'answer', sdp : answer_description.sdp}})
-                        console.log('response_msg:', response_msg)
                         ws.send(response_msg)
 
                       }
                     } else if(msg.response){
                       if(msg.response.type == 'answer'){
-                        // let description = new RTCSessionDescription({ type : 'answer', sdp : custom_answer})
                         let description = new RTCSessionDescription({ type : 'answer', sdp : msg.response.sdp})
                         await localPeerConnection.setRemoteDescription(description)
                       } else if(msg.response.type == 'answer'){
@@ -198,7 +187,6 @@
                       }
                     }
                   } catch (error) {
-                    console.log('err??')
                     console.err('error:', errro.toString())
                   }
 

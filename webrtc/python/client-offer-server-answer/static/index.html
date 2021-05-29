@@ -14,6 +14,7 @@
 
   <div>
     <button id="startButton">Start</button>
+    <button id="peerConnectionButton">PeerConnection</button>
     <button id="callButton">Call</button>
     <button id="hangupButton">Hang Up</button>
   </div>
@@ -41,6 +42,7 @@
             };
             
             // Define initial start time of the call (defined as connection between peers).
+
             let startTime = null;
             
             // Define peer connections, streams and video elements.
@@ -50,7 +52,7 @@
             let localStream;
             let remoteStream;
             
-            let localPeerConnection;
+            let localPeerConnection = null
             let remotePeerConnection;
             
                    
@@ -87,6 +89,8 @@
             const startButton = document.getElementById('startButton');
             const callButton = document.getElementById('callButton');
             const hangupButton = document.getElementById('hangupButton');
+            const peerConnectionButton = document.getElementById('peerConnectionButton');
+            
             
             // Set up initial action buttons status: disable call and hangup.
             callButton.disabled = true;
@@ -107,94 +111,109 @@
               }
               trace('Requesting local stream.');
             }
-            
-            // Handles call button action: creates peer connection.
-            async function callAction() {
-              callButton.disabled = true;
-              hangupButton.disabled = false;
-            
-              trace('Starting call.');
-              startTime = window.performance.now();
-          
-              const servers = null;  // Allows for RTC server configuration.
 
-              const config = {
-                    'iceServers' : [ { 
-                            urls : 'stun:18.191.223.12:3478' 
-                        }]
-                  }
-            
-              // Create peer connections and add behavior.
-              localPeerConnection = new RTCPeerConnection(config);
-              trace('Created local peer connection object localPeerConnection.');
+            function peerConnectionAction(){
+              let ws = null
 
-              localPeerConnection.onicecandidate = async (event) => {
-                const peerConnection = event.target;
-                const iceCandidate = event.candidate;
-              
-                if (iceCandidate) {
-                  let str = JSON.stringify(iceCandidate)
-                  console.log('local newIceCandidate:', str)
-                  const newIceCandidate = new RTCIceCandidate(iceCandidate);
-                  
-                  const otherPeer = getOtherPeer(peerConnection);
-              
-                  await otherPeer.addIceCandidate(newIceCandidate)
-              
-                  trace(`${getPeerName(peerConnection)} ICE candidate:\n` +
-                        `${event.candidate.candidate}.`);
-                }
-              }
-            
-              remotePeerConnection = new RTCPeerConnection(config);
-              trace('Created remote peer connection object remotePeerConnection.');
-              
-              remotePeerConnection.onicecandidate = async (event) => {
-                const peerConnection = event.target;
-                const iceCandidate = event.candidate;
-              
-                if (iceCandidate) {
-                  let str = JSON.stringify(iceCandidate)
-                  console.log('remote newIceCandidate:', str)
-                  const newIceCandidate = new RTCIceCandidate(iceCandidate);
-
-                  const otherPeer = getOtherPeer(peerConnection);
-                  try{
-                    await otherPeer.addIceCandidate(newIceCandidate)
-                  } catch (error) {
-                    console.error(error.toString())
-                  }
-                  trace(`${getPeerName(peerConnection)} ICE candidate:\n` + `${event.candidate.candidate}.`);
-                }
-              }
-              localPeerConnection.onaddstream = (event) => {
-                console.log('gotRemoteMediaStream event:', event)
-                const mediaStream = event.stream;
-                video2.srcObject = mediaStream;
-                remoteStream = mediaStream;
-                trace('Remote peer connection received remote stream.');
-              }
-            
-              // Add local stream to connection and create offer to connect.
-              
-              localStream.getTracks().forEach((track) => {
-                console.log('pc.addTrack')
-                localPeerConnection.addTrack(track, localStream)
-              })
-            
               try{
-                console.log('start signaling')
-                const offer_description = await localPeerConnection.createOffer()
-                console.log('offer_description:', offer_description)
-                await localPeerConnection.setLocalDescription(offer_description)
-                await remotePeerConnection.setRemoteDescription(offer_description)
-                const answer_description = await remotePeerConnection.createAnswer()
-                await remotePeerConnection.setLocalDescription(answer_description)
-                await localPeerConnection.setRemoteDescription(answer_description)
-                console.log('end signaling')
+                ws = new WebSocket("wss://192.168.0.59:8999/webrtc");
+                ws.onopen = async () => {
+                  console.log('wss connect success')
+                  const servers = null;  // Allows for RTC server configuration.
+                  const config = {
+                        // 'iceServers' : [ { 
+                        //         urls : 'stun:stun.l.google.com:19302' 
+                        //     }]
+                  }
+                  const offerOptions = {
+                    offerToReceiveVideo: 1,
+                    offerToReceiveAudio: 1,
+                  };
+                  localPeerConnection = new RTCPeerConnection(config);
+                  function onIceCandidate(event){
+                    const peerConnection = event.target
+
+                    if (event.candidate && ws) {
+                      
+                      const message = JSON.stringify({
+                        event : {
+                          type : 'ice',
+                          candidate : event.candidate.candidate,
+                          sdpMLineIndex: event.candidate.sdpMLineIndex,
+                        }
+                      })
+                      console.log('onicecandidate message -> ', message)
+                      ws.send(message)
+                    }
+                  }
+
+                  function onAddStream(event) {
+                    console.log('############### gotRemoteMediaStream event:', event)
+                    const mediaStream = event.stream;
+                    video2.srcObject = mediaStream;
+                    remoteStream = mediaStream;
+                  }
+                  
+                  localPeerConnection.addEventListener('icecandidate', onIceCandidate);
+                  localPeerConnection.addEventListener('addstream', onAddStream);
+                  localStream.getTracks().forEach((track) => {
+                    console.log('pc.addTrack')
+                    localPeerConnection.addTrack(track, localStream)
+                  })
+
+                  // ws.send(JSON.stringify({request : { type : 'needCall'}}))
+
+                  const offer_description = await localPeerConnection.createOffer(offerOptions)
+                  await localPeerConnection.setLocalDescription(offer_description)
+                  const message = JSON.stringify({
+                    request : {
+                      type : 'offer',
+                      sdp : localPeerConnection.localDescription.sdp,
+                    }})
+                  console.log(`offer sdp : \n${message}`)
+                  ws.send(message)
+                }
+                ws.onmessage = async (event) => {
+                  try{
+                    let msg = JSON.parse(event.data)
+                    console.log('msg:', msg)
+                    if(msg.request){
+                      if(msg.request.type == 'offer') {
+                        const description = new RTCSessionDescription({ type : 'offer', sdp : msg.request.sdp})
+                        await localPeerConnection.setRemoteDescription(description)
+                        let answer_description = await localPeerConnection.createAnswer()
+                        await localPeerConnection.setLocalDescription(answer_description)
+                        const response_msg = JSON.stringify({ response : { type : 'answer', sdp : answer_description.sdp}})
+                        ws.send(response_msg)
+
+                      }
+                    } else if(msg.response){
+                      if(msg.response.type == 'answer'){
+                        let description = new RTCSessionDescription({ type : 'answer', sdp : msg.response.sdp})
+                        await localPeerConnection.setRemoteDescription(description)
+                      } else if(msg.response.type == 'answer'){
+                      }
+                    } else if(msg.event) {
+                      if(msg.event.type == 'ice') {
+                        console.log('recv <- ice.candidate:', msg.event.candidate)
+                        await localPeerConnection.addIceCandidate(new RTCIceCandidate(msg.event.candidate));
+                      }
+                    }
+                  } catch (error) {
+                    console.err('error:', errro.toString())
+                  }
+
+                }
               } catch (error) {
                 console.error(error.toString())
               }
+
+            
+            }
+            
+            // Handles call button action: creates peer connection.
+            async function callAction() {
+
 
             }
             
@@ -212,6 +231,7 @@
             // Add click event handlers for buttons.
             startButton.addEventListener('click', startAction);
             callButton.addEventListener('click', callAction);
+            peerConnectionButton.addEventListener('click', peerConnectionAction);
             hangupButton.addEventListener('click', hangupAction);
             
             
